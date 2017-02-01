@@ -129,6 +129,7 @@ class Matting:
         img = cv.imread(fileName)
         if(img is not None):
             success = True
+	    img = img.astype('float64')
             self._images[key] = img
         else:
             msg = 'fail in reading image'
@@ -175,32 +176,34 @@ success, errorMessage = triangulationMatting(self)
         #########################################
         ## PLACE YOUR CODE BETWEEN THESE LINES ##
         #########################################
-        backA = self._images[backA]
-        backB = self._images[backB]
-        compA = self._images[compA]
-        compB = self._images[compB]
-        row = backA[:,0].size
-        col = backA[0,:].size
+        backA = self._images['backA']/255
+        backB = self._images['backB']/255
+        compA = self._images['compA']/255
+        compB = self._images['compB']/255
+        row = backA[:,0 ,0].size
+        col = backA[0,: ,0].size
         colOut = np.zeros((row, col, 3))
-        alphaOut = np.zeros((row, col))
+        alphaOut = np.zeros((row, col, 3))
         #Ax = B
         B = np.zeros((6, 1))
         A = np.zeros((6, 4))
-        A[0:3, 0: 3] += np.eye(3, 3)
-        A[3:6, 0: 3] += np.eye(3, 3)
+        A[0:3, 0:3] += np.eye(3, 3)
+        A[3:6, 0:3] += np.eye(3, 3)
+        one = np.ones((3))
         x = np.zeros((4, 1))
         if(backA is not None and backB is not None and compA is not None and compB is not None):
             for i in range(row):
                 for j in range(col):
-                    B[0:3, :] = cv.addWeighted(compA, 1, backA, -1)
-                    B[3:6, :] = cv.addWEighted(compB, 1, backB, -1)
+                    B[0:3, 0] = np.clip(compA[i, j] - backA[i, j], 0, 1)
+                    B[3:6, 0] = np.clip(compB[i, j] - backB[i, j], 0, 1)
                     A[0:3, 3] = backA[i, j]
                     A[3:6, 3] = backB[i, j]
                     x = sp.pinv(A).dot(B)
                     colOut[i, j] = x[0:3, 0]
-                    alphaOut[i, j] = x[3,0]
-            success = Ture
-
+                    alphaOut[i, j] =  one * x[3,0]
+            self._images['colOut'] = colOut * 255
+            self._images['alphaOut'] = alphaOut * -255                 
+            success = True
         else:
             msg = 'not all inputs are valid'
         #########################################
@@ -223,7 +226,18 @@ success, errorMessage = createComposite(self)
         #########################################
         ## PLACE YOUR CODE BETWEEN THESE LINES ##
         #########################################
-
+	alphaIn = self._images['alphaIn']/255
+	colIn = self._images['colIn']/255
+	backIn = self._images['backIn']/255
+	#cv.imshow('test',  colIn)
+	#cv.waitKey(0)
+	#cv.destoryAllWindows()
+	if(alphaIn is not None and colIn is not None and backIn is not None):
+		compOut = colIn  + np.clip((1 - alphaIn), 0, 1) * backIn
+		self._images['compOut'] = compOut * 255
+		success = True
+	else:
+		mgs = 'not all inputs are valid'
         #########################################
 
         return success, msg
